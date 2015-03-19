@@ -10,7 +10,6 @@ module.exports = function (grunt) {
     fs = require('fs'),
     pkg = require('../package.json'),
     chrome = require('node-chrome-runner'),
-    crypto = require('crypto'),
     fileSyncCmp = require('file-sync-cmp');
 
   /* copyFiles is adapted from:
@@ -154,11 +153,11 @@ module.exports = function (grunt) {
     grunt.file.mkdir(ctx.outDir + '/profile');
 
     // Copy all specified files into the destination location.
-    copyFiles(ctx.files, ctx.outDir + '/src/');
+    copyFiles(ctx.files, ctx.outDir + '/files/');
 
     // Add the HTML script tags
     ctx.scripts.forEach(function(scriptPath) {
-      htmlTags += "<script type='text/javascript' src='src/" + scriptPath + "'></script>\n";
+      htmlTags += "<script type='text/javascript' src='files/" + scriptPath + "'></script>\n";
     });
 
     htmlTags += "<script type='text/javascript' src='relay.js?port=" + ctx.port + "'></script>";

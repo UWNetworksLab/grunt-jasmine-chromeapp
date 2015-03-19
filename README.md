@@ -70,7 +70,7 @@ Type: `{ cwd :string; src :string[]; dest :string; expand :boolean}[]`
 
 This specifies the files copied into the ChromeApp that is used to run the jasmine tests. It has the same parameters as the [grunt-contrib-copy](https://github.com/gruntjs/grunt-contrib-copy) task.
 
-Files of the form `cwd/src/*` get copied to `dest/src/*` if `expand` is true. If expand is false, they get copied to `dest/*`.
+Files of the form `cwd/src/*` get copied to `dest/files/src/*` if `expand` is true. If expand is false, they get copied to `dest/*`.
 
 #### scripts
 
