@@ -1,7 +1,5 @@
 /*jslint node:true */
 
-console.log("bar");
-
 module.exports = function (grunt) {
   'use strict';
 
@@ -73,34 +71,35 @@ module.exports = function (grunt) {
       isExpandedPair = filePair.orig.expand || false;
 
       filePair.src.forEach(function(src) {
-        src = unixifyPath(src);
+        var fullSrcPath = unixifyPath(
+            filePair.cwd ? path.join(filePair.cwd, src) : src);
         dest = unixifyPath(dest);
 
         if (detectDestType(dest) === 'directory') {
           dest = (isExpandedPair) ? dest : path.join(dest, src);
         }
 
-        if (grunt.file.isDir(src)) {
+        if (grunt.file.isDir(fullSrcPath)) {
           grunt.verbose.writeln('Creating ' + chalk.cyan(dest));
           grunt.file.mkdir(dest);
           if (options.mode !== false) {
             fs.chmodSync(dest, (options.mode === true) ?
-                fs.lstatSync(src).mode : options.mode);
+                fs.lstatSync(fullSrcPath).mode : options.mode);
           }
 
           if (options.timestamp) {
-            dirs[dest] = src;
+            dirs[dest] = fullSrcPath;
           }
 
           tally.dirs++;
         } else {
-          grunt.verbose.writeln('Copying ' + chalk.cyan(src) + ' -> ' +
+          grunt.verbose.writeln('Copying ' + chalk.cyan(fullSrcPath) + ' -> ' +
               chalk.cyan(dest));
-          grunt.file.copy(src, dest, copyOptions);
-          syncTimestamp(src, dest);
+          grunt.file.copy(fullSrcPath, dest, copyOptions);
+          syncTimestamp(fullSrcPath, dest);
           if (options.mode !== false) {
             fs.chmodSync(dest, (options.mode === true) ?
-                fs.lstatSync(src).mode : options.mode);
+                fs.lstatSync(fullSrcPath).mode : options.mode);
           }
           tally.files++;
         }
@@ -132,15 +131,14 @@ module.exports = function (grunt) {
   // Create the ChromeApp for running the specs.
   function buildSpec(ctx, next) {
     grunt.log.write('Building...');
-    var dest = ctx.outdir,
-        htmlTags = "";
+    var htmlTags = "";
 
     // Create the output directory.
-    grunt.file.mkdir(ctx.outdir);
+    grunt.file.mkdir(ctx.outDir);
 
     // Copy the template
     grunt.file.recurse(ctx.template, function (file, root, dir, filename) {
-      grunt.file.copy(file, dest + '/' + filename);
+      grunt.file.copy(file, ctx.outDir + '/' + filename);
     });
 
     // Copy Jasmine
@@ -149,14 +147,14 @@ module.exports = function (grunt) {
         if (!dir) {
           dir = '';
         }
-        grunt.file.copy(file, dest + '/jasmine-core/' + dir + '/' + filename);
+        grunt.file.copy(file, ctx.outDir + '/jasmine-core/' + dir + '/' + filename);
       });
 
     // Make a profile directory.
-    grunt.file.mkdir(ctx.outdir + '/profile');
+    grunt.file.mkdir(ctx.outDir + '/profile');
 
     // Copy all specified files into the destination location.
-    copyFiles(ctx.files, dest + '/src/');
+    copyFiles(ctx.files, ctx.outDir + '/src/');
 
     // Add the HTML script tags
     ctx.scripts.forEach(function(scriptPath) {
@@ -171,8 +169,8 @@ module.exports = function (grunt) {
     }
 
     // Update the template with found specs.
-    htmlTags = grunt.file.read(dest + '/main.html') + htmlTags;
-    grunt.file.write(dest + '/main.html', htmlTags);
+    htmlTags = grunt.file.read(ctx.outDir + '/main.html') + htmlTags;
+    grunt.file.write(ctx.outDir + '/main.html', htmlTags);
 
     grunt.log.writeln(chalk.green('Done.'));
     next();
@@ -229,8 +227,8 @@ module.exports = function (grunt) {
         "--no-first-run",
         "--force-app-mode",
         "--apps-keep-chrome-alive-in-tests",
-        "--load-and-launch-app=" + ctx.outdir,
-        "--user-data-dir=" + ctx.outdir + '/profile'
+        "--load-and-launch-app=" + ctx.outDir,
+        "--user-data-dir=" + ctx.outDir + '/profile'
     ].concat(ctx.flags), path: ctx.binary});
   }
 
@@ -320,7 +318,7 @@ module.exports = function (grunt) {
     }
     if (ctx.keepRunner) {
       ctx.chrome.childProcess.on('close', function () {
-        grunt.file['delete'](ctx.outdir);
+        grunt.file['delete'](ctx.outDir);
         ctx.web.close();
         next(good || new Error('One or more tests failed.'));
       });
@@ -330,11 +328,11 @@ module.exports = function (grunt) {
     ctx.web.close();
     if (ctx.chrome) {
       ctx.chrome.childProcess.on('close', function () {
-        grunt.file['delete'](ctx.outdir);
+        grunt.file['delete'](ctx.outDir);
       });
       ctx.chrome.childProcess.kill();
     } else {
-      grunt.file['delete'](ctx.outdir);
+      grunt.file['delete'](ctx.outDir);
     }
 
     next(good || new Error('One or more tests failed.'));
@@ -346,7 +344,7 @@ module.exports = function (grunt) {
       ctx = this.options({
         template: __dirname + '/../tasks/jasmine-chromeapp',
         version: '2.0.0',
-        outdir: '.build',
+        outDir: '.build',
         binary: undefined,
         keepRunner: false,
         port: 9989,

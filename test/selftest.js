@@ -22,7 +22,7 @@ describe('jasmine-chromeapp', function () {
     };
 
     el.addEventListener('error', window.callback, true);
-    el.src = '/scripts/test/helper.js';
+    el.src = 'src/test/helper.js';
     document.body.appendChild(el);
   });
 });

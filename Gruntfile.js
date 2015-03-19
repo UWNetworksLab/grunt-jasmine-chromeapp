@@ -18,7 +18,17 @@ module.exports = function (grunt) {
         files: [ { src: ['test/*.js'] } ],
         scripts: ['test/selftest.js'],
         options: {
-          // paths: 'test/selftest.js'
+          outDir: '.build/self-test1/'
+        }
+      },
+      selftest2: {
+        files: [
+          { cwd: 'test', src: ['selftest.js'] },
+          { src: ['test/helper.js'], dest: 'test/helper.js' }
+        ],
+        scripts: ['selftest.js'],
+        options: {
+          outDir: '.build/self-test2/'
         }
       }
     }
