@@ -4,8 +4,7 @@
 
 [![Build Status](https://api.shippable.com/projects/54d3c81a5ab6cc13528afac2/badge?branchName=master)](https://app.shippable.com/projects/54d3c81a5ab6cc13528afac2/builds/latest)
 
-Getting Started
----------------
+## Getting Started
 
 This plugin requires Grunt ```~0.4.0```
 
@@ -21,36 +20,69 @@ Once the plugin has been installed, it may be enabled with this line of JavaScri
 grunt.loadNpmTasks('grunt-jasmine-chromeapp');
 ```
 
-Jasmine Task
-------------
+## The Jasmine ChromeApp Task
 
 Run this task with the ```grunt jasmine_chromeapp``` command.
 
-Automatically builds and maintains the spec runner and reports results back to the grunt console.
+This automatically builds and maintains the spec runner and reports results back to the grunt console.
 Starts chrome with a dynamically created packaged application which runs jasmine specs. The package
 reports results back to a web server run by the plugin, which then reports back to the console.
 This structure is chosen becasue selenium is unable to debug or instrument packaged applications
 directly.
 
-Customize your SpecRunner
--------------------------
+### Example specification of the jasmine-chromeapp task
 
-Use your own files in the app to customize your tests. 
+An example `jasmine_chromeapp` task defined in your Gruntfiles.js
+```
+  jasmine_chromeapp:
+    tcp:
+      # Files that are copied into the Chrome App 'files' subdirectory.
+      files: [
+        {
+          cwd: 'build/integration-tests/tcp/',
+          src: ['**/*', '!jasmine_chromeapp/**/*'],
+          dest: './',  # Relative to |options.outdir| specified below
+          expand: true
+        }
+      ],
+      # Script tags that are added to the HTML in the chrome app's main.html
+      scripts: [
+        'freedom-for-chrome/freedom-for-chrome.js',
+        'tcp.core-env.spec.static.js'
+      ],
+      # Optional settings for the output path, and to keep the spec runner
+      # alive after tests complete, which can be useful for debugging.
+      options: {
+        outdir: 'build/integration-tests/tcp/jasmine_chromeapp/',
+        keepRunner: true
+      }
+```
 
+## Customize your SpecRunner
+
+Use your own files in the app to customize your tests.
 
 ### Options
 
-#### src
-Type: `String|Array`
+#### files
 
-Your source files and specs. These are the files you are testing.
+Type: `{ cwd :string; src :string[]; dest :string; expand :boolean}[]`
 
-#### options.paths
-Type: `String|Array`
+This specifies the files copied into the ChromeApp that is used to run the jasmine tests. It has the same parameters as the [grunt-contrib-copy](https://github.com/gruntjs/grunt-contrib-copy) task.
 
-Listing of which files should be included as script tags in the test runner. If not set, defaults
-to all files listed as source files, but can define a subset of those files to support copying
-non-js files, or other support files which should not be directly included.
+Files of the form `cwd/src/*` get copied to `dest/src/*` if `expand` is true. If expand is false, they get copied to `dest/*`.
+
+#### scripts
+
+Type: `string[]`
+
+This specifies the additional paths for `<script ... >` tags which get added to the `main.html`. This should include your JS spec files. The ordering of the script tags in the HTML follows the ordering specified in this parameter.
+
+#### options.outDir
+Type: `string`
+Default: `.build`
+
+The directory to stage the chrome app into. To debug bad paths, it is useful to have the `keepRunner` option set to true, and then explore path structure in `outDir`.
 
 #### options.keepRunner
 Type: `Boolean`
@@ -80,9 +112,3 @@ Type: `Number`
 Default: `30000`
 
 How many milliseconds to wait for the browser to start up before failing.
-
-#### options.outfile
-Type: `String`
-Default: `.build`
-
-The directory to stage the chrome app into.
