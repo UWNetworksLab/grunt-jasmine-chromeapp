@@ -1,6 +1,6 @@
 {
   "name": "grunt-jasmine-chromeapp",
-  "version": "1.8.0",
+  "version": "2.0.0",
   "description": "Grunt task to run jasmine tests in a chrome packaged app",
   "scripts": {
     "test": "grunt test"
@@ -31,7 +31,8 @@
     "chalk": "^0.5.1",
     "fs-extra": "^0.16.0",
     "glob": "^4.4.0",
-    "node-chrome-runner": "^0.0.5"
+    "node-chrome-runner": "^0.0.5",
+    "file-sync-cmp": "^0.1.1"
   },
   "peerDependencies": {
     "grunt": "~0.4.0"

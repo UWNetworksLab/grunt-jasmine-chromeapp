@@ -1,5 +1,7 @@
 /*jslint node:true */
 
+console.log("bar");
+
 module.exports = function (grunt) {
   'use strict';
 
@@ -7,43 +9,140 @@ module.exports = function (grunt) {
     chalk = require('chalk'),
     path = require('path'),
     async = require('async'),
-    fs = require('fs-extra'),
+    fs = require('fs'),
     pkg = require('../package.json'),
-    chrome = require('node-chrome-runner');
+    chrome = require('node-chrome-runner'),
+    crypto = require('crypto'),
+    fileSyncCmp = require('file-sync-cmp');
 
-  function addFiles(files, to, tagFilter) {
-    var tags = '';
+  /* copyFiles is adapted from:
+   * https://github.com/gruntjs/grunt-contrib-copy/tasks/copy.js
+   * See: https://github.com/gruntjs/grunt-contrib-copy/blob/master/LICENSE-MIT
+   */
+  var copyFiles = function(files, rootDest, options) {
 
-    files.forEach(function (file) {
-      file.src.forEach(function (f) {
-        var dest;
-        if (file.dest && grunt.file.isDir(file.dest)) {
-          dest = f;
-        } else {
-          dest = file.dest || f;
+    var setDefaultParams = function(obj, defaultParams) {
+      for(var param in defaultParams) {
+        if(defaultParams.hasOwnProperty(param) && !(param in obj)) {
+          obj[param] = defaultParams[param];
         }
-        if (grunt.file.isFile(f)) {
-          if (grunt.file.isMatch(tagFilter, f)) {
-            tags += "<script type='text/javascript' src='scripts/" + dest + "'></script>\n";
+      }
+    };
+    var detectDestType = function(dest) {
+      if (grunt.util._.endsWith(dest, '/')) { return 'directory';
+      } else { return 'file'; }
+    };
+    var unixifyPath = function(filepath) {
+      if (process.platform === 'win32') { return filepath.replace(/\\/g, '/');
+      } else { return filepath; }
+    };
+    var syncTimestamp = function (src, dest) {
+      var stat = fs.lstatSync(src);
+      if (path.basename(src) !== path.basename(dest)) { return; }
+      if (stat.isFile() && !fileSyncCmp.equalFiles(src, dest)) { return; }
+      fs.utimesSync(dest, stat.atime, stat.mtime);
+    };
+
+    if(!options) { options = {}; }
+    setDefaultParams(options, {
+      encoding: grunt.file.defaultEncoding,
+      // processContent/processContentExclude deprecated renamed to
+      // process/noProcess
+      processContent: false,
+      processContentExclude: [],
+      timestamp: false,
+      mode: false,
+    });
+
+    var copyOptions = {
+      encoding: options.encoding,
+      process: options.process || options.processContent,
+      noProcess: options.noProcess || options.processContentExclude,
+    };
+
+    var isExpandedPair;
+    var dirs = {};
+    var tally = {
+      dirs: 0,
+      files: 0,
+    };
+
+    files.forEach(function(filePair) {
+      if (!filePair.dest) { filePair.dest = './'; }
+      var dest = path.join(rootDest, filePair.dest);
+      isExpandedPair = filePair.orig.expand || false;
+
+      filePair.src.forEach(function(src) {
+        src = unixifyPath(src);
+        dest = unixifyPath(dest);
+
+        if (detectDestType(dest) === 'directory') {
+          dest = (isExpandedPair) ? dest : path.join(dest, src);
+        }
+
+        if (grunt.file.isDir(src)) {
+          grunt.verbose.writeln('Creating ' + chalk.cyan(dest));
+          grunt.file.mkdir(dest);
+          if (options.mode !== false) {
+            fs.chmodSync(dest, (options.mode === true) ?
+                fs.lstatSync(src).mode : options.mode);
           }
-          grunt.file.copy(f, to + '/scripts/' + dest);
+
+          if (options.timestamp) {
+            dirs[dest] = src;
+          }
+
+          tally.dirs++;
+        } else {
+          grunt.verbose.writeln('Copying ' + chalk.cyan(src) + ' -> ' +
+              chalk.cyan(dest));
+          grunt.file.copy(src, dest, copyOptions);
+          syncTimestamp(src, dest);
+          if (options.mode !== false) {
+            fs.chmodSync(dest, (options.mode === true) ?
+                fs.lstatSync(src).mode : options.mode);
+          }
+          tally.files++;
         }
       });
     });
 
-    return tags;
-  }
+    if (options.timestamp) {
+      Object.keys(dirs).sort(function (a, b) {
+        return b.length - a.length;
+      }).forEach(function (dest) {
+        syncTimestamp(dirs[dest], dest);
+      });
+    }
 
+    if (tally.dirs) {
+      grunt.log.write('Created ' + chalk.cyan(tally.dirs.toString()) +
+          (tally.dirs === 1 ? ' directory' : ' directories'));
+    }
+
+    if (tally.files) {
+      grunt.log.write((tally.dirs ? ', copied ' : 'Copied ') +
+          chalk.cyan(tally.files.toString()) +
+          (tally.files === 1 ? ' file' : ' files'));
+    }
+
+    grunt.log.writeln();
+  };
+
+  // Create the ChromeApp for running the specs.
   function buildSpec(ctx, next) {
     grunt.log.write('Building...');
-    grunt.file.mkdir(ctx.outfile);
-    var dest = ctx.outfile,
-      tags = "";
+    var dest = ctx.outdir,
+        htmlTags = "";
+
+    // Create the output directory.
+    grunt.file.mkdir(ctx.outdir);
 
     // Copy the template
     grunt.file.recurse(ctx.template, function (file, root, dir, filename) {
       grunt.file.copy(file, dest + '/' + filename);
     });
+
     // Copy Jasmine
     grunt.file.recurse(__dirname + '/../vendor/jasmine-core-' + ctx.version,
       function (file, root, dir, filename) {
@@ -52,28 +151,28 @@ module.exports = function (grunt) {
         }
         grunt.file.copy(file, dest + '/jasmine-core/' + dir + '/' + filename);
       });
+
     // Make a profile directory.
-    grunt.file.mkdir(ctx.outfile + '/profile');
+    grunt.file.mkdir(ctx.outdir + '/profile');
 
-    // Copy user files.
-    if (!ctx.paths) {
-      ctx.paths = [];
-      ctx.files.forEach(function(file) {
-        ctx.paths = ctx.paths.concat(grunt.file.expand(file.src));
-      });
-    }
-    tags += addFiles(ctx.files, dest, ctx.paths);
+    // Copy all specified files into the destination location.
+    copyFiles(ctx.files, dest + '/src/');
 
-    tags += "<script type='text/javascript' src='relay.js?port=" + ctx.port + "'></script>";
+    // Add the HTML script tags
+    ctx.scripts.forEach(function(scriptPath) {
+      htmlTags += "<script type='text/javascript' src='src/" + scriptPath + "'></script>\n";
+    });
+
+    htmlTags += "<script type='text/javascript' src='relay.js?port=" + ctx.port + "'></script>";
 
     if (!ctx.keepRunner && grunt.option('verbose')) {
       grunt.verbose.writeln('Asking to capture chrome logs.');
-      tags += "<script type='text/javascript' src='log.js'></script>";
+      htmlTags += "<script type='text/javascript' src='log.js'></script>";
     }
 
     // Update the template with found specs.
-    tags = grunt.file.read(dest + '/main.html') + tags;
-    grunt.file.write(dest + '/main.html', tags);
+    htmlTags = grunt.file.read(dest + '/main.html') + htmlTags;
+    grunt.file.write(dest + '/main.html', htmlTags);
 
     grunt.log.writeln(chalk.green('Done.'));
     next();
@@ -130,8 +229,8 @@ module.exports = function (grunt) {
         "--no-first-run",
         "--force-app-mode",
         "--apps-keep-chrome-alive-in-tests",
-        "--load-and-launch-app=" + ctx.outfile,
-        "--user-data-dir=" + ctx.outfile + '/profile'
+        "--load-and-launch-app=" + ctx.outdir,
+        "--user-data-dir=" + ctx.outdir + '/profile'
     ].concat(ctx.flags), path: ctx.binary});
   }
 
@@ -221,7 +320,7 @@ module.exports = function (grunt) {
     }
     if (ctx.keepRunner) {
       ctx.chrome.childProcess.on('close', function () {
-        grunt.file['delete'](ctx.outfile);
+        grunt.file['delete'](ctx.outdir);
         ctx.web.close();
         next(good || new Error('One or more tests failed.'));
       });
@@ -231,11 +330,11 @@ module.exports = function (grunt) {
     ctx.web.close();
     if (ctx.chrome) {
       ctx.chrome.childProcess.on('close', function () {
-        grunt.file['delete'](ctx.outfile);
+        grunt.file['delete'](ctx.outdir);
       });
       ctx.chrome.childProcess.kill();
     } else {
-      grunt.file['delete'](ctx.outfile);
+      grunt.file['delete'](ctx.outdir);
     }
 
     next(good || new Error('One or more tests failed.'));
@@ -247,8 +346,7 @@ module.exports = function (grunt) {
       ctx = this.options({
         template: __dirname + '/../tasks/jasmine-chromeapp',
         version: '2.0.0',
-        outfile: '.build',
-        paths: undefined,
+        outdir: '.build',
         binary: undefined,
         keepRunner: false,
         port: 9989,
@@ -260,6 +358,7 @@ module.exports = function (grunt) {
       grunt.log.debug(JSON.stringify(ctx));
     }
 
+    ctx.scripts = this.data.scripts;
     ctx.files = this.files;
     ctx.done = done;
 
