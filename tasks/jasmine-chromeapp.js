@@ -8,7 +8,7 @@ module.exports = function (grunt) {
       async = require('async'),
       pkg = require('../package.json'),
       chrome = require('node-chrome-runner'),
-      copyFiles = require('./copy');
+      copyFiles = require('./copy').copyFiles;
 
   // Create the ChromeApp for running the specs.
   function buildSpec(ctx, next) {

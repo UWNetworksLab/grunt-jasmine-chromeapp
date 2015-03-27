@@ -21,7 +21,10 @@
  * Default is current working directory.
  * @param {Object} options - grunt-contrib-copy style options.
  */
-var copyFiles = module.exports = (function () {
+
+console.log('copyFiles init.');
+
+var copyFiles = module.exports.copyFiles = (function () {
   'use strict';
 
   var grunt = require('grunt'),
@@ -142,3 +145,5 @@ var copyFiles = module.exports = (function () {
 
   return copyFiles;
 })();
+
+console.log('copyFiles end.');
